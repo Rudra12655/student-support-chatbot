@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Support Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <div class="chat-app">
+    <header class="chat-header">
+      <div class="header-info">
+        <div class="bot-avatar">SA</div>
+        <div>
+          <h1>Student Support Assistant</h1>
+          <p class="status-text"><span class="status-dot"></span> Online • Ready to help</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="quick-chips" id="quick-chips">
+      <button type="button" class="chip" data-q="What courses are available, including duration, syllabus overview, and eligibility?">Courses</button>
+      <button type="button" class="chip" data-q="What are the class timings, weekly schedule, and lab/lecture hours?">Schedules</button>
+      <button type="button" class="chip" data-q="How do assessments, quizzes, assignments, and grading work?">Assessments</button>
+      <button type="button" class="chip" data-q="Tell me about placement support, eligibility criteria, interview prep, and hiring process.">Placements</button>
+    </div>
+
+    <main id="chat-messages" class="chat-messages">
+      <div class="message bot-message">
+        Hey there! Ask me anything about courses, schedules, assessments, or placements.
+      </div>
+    </main>
+
+    <form id="chat-form" class="chat-form">
+      <input
+        id="user-input"
+        type="text"
+        placeholder="Ask a question..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', filename='chat.js') }}"></script>
+</body>
+</html>
