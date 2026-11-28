@@ -1,22 +1,56 @@
+import os  # [MODIFIED] Added for environment variables and path handling
 from pathlib import Path
 import re
+import sys  # [MODIFIED] Added to detect PyInstaller frozen mode
+import threading  # [MODIFIED] Added to launch browser once server starts
+import webbrowser  # [MODIFIED] Added to open local chatbot URL automatically
+
 from flask import Flask, jsonify, render_template, request  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
-from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
 
-import chromadb  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
+# [MODIFIED] Optional heavy ML/vector packages for lightweight hosting (e.g., PythonAnywhere free tier)
+try:
+    import chromadb  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
+    from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]  # pyright: ignore[reportMissingImports]
+    VECTOR_SEARCH_AVAILABLE = True
+except ImportError:
+    chromadb = None
+    SentenceTransformer = None
+    VECTOR_SEARCH_AVAILABLE = False
 
-BASE_DIR = Path(__file__).resolve().parent
+
+# [MODIFIED] Resolve BASE_DIR using sys._MEIPASS when running inside a PyInstaller .exe
+def get_base_dir() -> Path:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return Path(__file__).resolve().parent
+
+
+BASE_DIR = get_base_dir()
 DB_DIR = BASE_DIR / "chroma_db"
 COLLECTION_NAME = "student_support_kb"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
-app = Flask(__name__)
+# [MODIFIED] Explicitly point Flask to bundled templates and static folders
+app = Flask(
+    __name__,
+    template_folder=str(BASE_DIR / "templates"),
+    static_folder=str(BASE_DIR / "static"),
+)
 
-print(f"Loading embedding model '{EMBEDDING_MODEL}'...")
-model = SentenceTransformer(EMBEDDING_MODEL)
+model = None
+collection = None
 
-client = chromadb.PersistentClient(path=str(DB_DIR))
-collection = client.get_or_create_collection(name=COLLECTION_NAME)
+# [MODIFIED] Initialize model and ChromaDB only when available and chroma_db exists
+if VECTOR_SEARCH_AVAILABLE and DB_DIR.exists():
+    try:
+        print(f"Loading embedding model '{EMBEDDING_MODEL}'...")
+        model = SentenceTransformer(EMBEDDING_MODEL)
+        client = chromadb.PersistentClient(path=str(DB_DIR))
+        collection = client.get_or_create_collection(name=COLLECTION_NAME)
+    except Exception as exc:
+        print(f"Vector search disabled due to initialization error: {exc}")
+        model = None
+        collection = None
 
 # --- CUSTOMIZED ANSWERS START ---
 CUSTOM_ANSWERS: dict[str, tuple[list[str], str]] = {
@@ -53,7 +87,8 @@ def get_custom_answer(query: str) -> str | None:
 
 
 def search_kb(query: str, top_k: int = 3) -> list[dict]:
-    if collection.count() == 0:
+    # [MODIFIED] Safely return empty matches when vector search is not active
+    if model is None or collection is None or collection.count() == 0:
         return []
 
     query_embedding = model.encode([query], normalize_embeddings=True).tolist()
@@ -138,11 +173,18 @@ def chat():
     )
 
 
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+# [MODIFIED] Helper to open the local app in the default browser once running
+def _open_browser(url: str) -> None:
+    webbrowser.open(url)
 
-    import os
 
+# [MODIFIED] Single clean startup block with debug=False and use_reloader=False
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    host = "127.0.0.1"
+    url = f"http://{host}:{port}"
+
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(1.5, _open_browser, args=[url]).start()
+
+    app.run(host=host, port=port, debug=False, use_reloader=False)
